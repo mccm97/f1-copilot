@@ -1,0 +1,37 @@
+name: Backfill sessione OpenF1 -> Supabase
+
+on:
+  workflow_dispatch:
+    inputs:
+      session_key:
+        description: "Session key OpenF1 (numero sessione)"
+        required: true
+      driver_number:
+        description: "Numero pilota principale (es. 1)"
+        required: true
+      rival_number:
+        description: "Numero pilota rivale (es. 4)"
+        required: true
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installa dipendenze
+        run: pip install -r requirements.txt requests
+
+      - name: Esegui backfill
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: >
+          python scripts/backfill_session.py
+          --session-key ${{ inputs.session_key }}
+          --driver ${{ inputs.driver_number }}
+          --rival ${{ inputs.rival_number }}
