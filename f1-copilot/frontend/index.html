@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Capo Ingegnere AI — F1 Copilot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg-primary: #14161A;
+    --bg-panel: #1D2024;
+    --bg-panel-raised: #24272C;
+    --accent-ai: #8B2FC9;
+    --accent-ai-soft: #8B2FC933;
+    --ok: #00D2A0;
+    --pending: #FFB020;
+    --alert: #FF4D4D;
+    --text-primary: #E8E6E1;
+    --text-muted: #9A9994;
+    --border: #2C2F34;
+    --font-display: 'Big Shoulders Display', sans-serif;
+    --font-body: 'Inter', sans-serif;
+    --font-mono: 'JetBrains Mono', monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    min-height: 100vh;
+  }
+
+  a, button { font-family: inherit; }
+
+  :focus-visible {
+    outline: 2px solid var(--accent-ai);
+    outline-offset: 2px;
+  }
+
+  /* --- barra sessione --- */
+  .session-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 24px;
+    align-items: center;
+    padding: 14px 24px;
+    background: var(--bg-panel);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .session-bar .circuit {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 22px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .session-bar .badge-session {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: var(--accent-ai-soft);
+    color: var(--accent-ai);
+    border: 1px solid var(--accent-ai);
+  }
+  .session-bar .lap-counter {
+    font-family: var(--font-mono);
+    font-size: 15px;
+    color: var(--text-muted);
+  }
+  .session-bar .lap-counter strong {
+    color: var(--text-primary);
+    font-size: 18px;
+  }
+  .session-bar .weather {
+    display: flex;
+    gap: 16px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+
+  /* --- layout principale --- */
+  .layout {
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 0;
+    align-items: start;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+
+  .driver-grid {
+    display: grid;
+    gap: 12px;
+    padding: 20px;
+  }
+
+  .driver-card {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    cursor: pointer;
+    transition: border-color 0.15s ease;
+  }
+  .driver-card:hover, .driver-card:focus-visible {
+    border-color: var(--accent-ai);
+  }
+  .driver-card .row1 {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .driver-tag {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: 20px;
+    letter-spacing: 1px;
+    background: var(--bg-panel-raised);
+    padding: 4px 10px;
+    border-radius: 4px;
+    min-width: 60px;
+    text-align: center;
+  }
+  .gap-value {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    font-weight: 600;
+  }
+  .gap-trend {
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+  .gap-trend.closing { color: var(--ok); }
+  .gap-trend.opening { color: var(--alert); }
+
+  .sparkline { margin-left: auto; }
+
+  .row2 {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .degradation-chip {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .degradation-chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .degradation-chip.deg-ok { color: var(--ok); background: #00D2A01a; }
+  .degradation-chip.deg-ok .dot { background: var(--ok); }
+  .degradation-chip.deg-warn { color: var(--pending); background: #FFB0201a; }
+  .degradation-chip.deg-warn .dot { background: var(--pending); }
+  .degradation-chip.deg-alert { color: var(--alert); background: #FF4D4D1a; }
+  .degradation-chip.deg-alert .dot { background: var(--alert); }
+  .degradation-chip.deg-unknown { color: var(--text-muted); background: #ffffff0a; }
+  .degradation-chip.deg-unknown .dot { background: var(--text-muted); }
+
+  .sector-chip {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--bg-panel-raised);
+    color: var(--text-muted);
+  }
+
+  .driver-detail {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+    display: none;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .driver-card.expanded .driver-detail { display: block; }
+  .driver-detail h4 {
+    margin: 0 0 4px;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+  }
+  .driver-detail ul { margin: 0 0 10px 18px; padding: 0; }
+  .prediction-box {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--bg-panel-raised);
+    padding: 8px 10px;
+    border-radius: 6px;
+    margin-top: 6px;
+  }
+
+  /* --- feed radio --- */
+  .radio-feed {
+    background: var(--bg-panel);
+    border-left: 1px solid var(--border);
+    padding: 16px;
+    max-height: calc(100vh - 60px);
+    overflow-y: auto;
+    position: sticky;
+    top: 60px;
+  }
+  @media (max-width: 900px) {
+    .radio-feed { position: static; max-height: none; border-left: none; border-top: 1px solid var(--border); }
+  }
+  .radio-feed h3 {
+    font-family: var(--font-display);
+    font-weight: 800;
+    text-transform: uppercase;
+    font-size: 15px;
+    letter-spacing: 1px;
+    margin: 0 0 14px;
+    color: var(--text-muted);
+  }
+  .radio-entry {
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+    animation: slide-in 0.25s ease-out;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .radio-entry { animation: none; }
+  }
+  @keyframes slide-in {
+    from { opacity: 0; transform: translateY(-6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .radio-entry .meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .radio-entry .lap-tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .radio-entry .tag {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 13px;
+    background: var(--bg-panel-raised);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+  .radio-entry .text {
+    font-size: 13px;
+    line-height: 1.4;
+  }
+  .ground-badge {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    margin-right: 6px;
+    padding: 1px 6px;
+    border-radius: 3px;
+  }
+  .ground-badge.pass { color: var(--ok); background: #00D2A01a; }
+  .ground-badge.fail { color: var(--alert); background: #FF4D4D1a; }
+
+  .empty-state {
+    padding: 60px 24px;
+    text-align: center;
+    color: var(--text-muted);
+    grid-column: 1 / -1;
+  }
+  .empty-state .title {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 20px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+
+<header class="session-bar" id="session-bar">
+  <span class="circuit">—</span>
+  <span class="badge-session">—</span>
+  <span class="lap-counter">Giro <strong>—</strong> / —</span>
+  <span class="weather">
+    <span>Aria — °C</span>
+    <span>Pista — °C</span>
+    <span>Pioggia —%</span>
+  </span>
+</header>
+
+<div class="layout">
+  <main class="driver-grid" id="driver-grid">
+    <div class="empty-state">
+      <div class="title">Nessuna sessione in corso</div>
+      <div>La dashboard si popola automaticamente quando inizia una sessione. Controlla il calendario per l'orario della prossima.</div>
+    </div>
+  </main>
+
+  <aside class="radio-feed" id="radio-feed">
+    <h3>Feed muretto</h3>
+    <div id="radio-entries"></div>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* =========================================================================
+   CONFIGURAZIONE — sostituisci questi due valori con quelli del tuo progetto
+   Supabase (Project Settings -> API). La anon key e' pensata per essere
+   pubblica lato client, ma assicurati di avere le Row Level Security policy
+   configurate correttamente su ogni tabella prima di andare live.
+   ========================================================================= */
+const SUPABASE_URL = "INSERISCI_QUI_IL_TUO_URL_SUPABASE";
+const SUPABASE_ANON_KEY = "INSERISCI_QUI_LA_TUA_ANON_KEY";
+
+const DEMO_MODE = SUPABASE_URL.startsWith("INSERISCI");
+
+/* --- dati di esempio, usati solo se Supabase non e' configurato, cosi'
+   la dashboard si vede subito anche prima di collegare i dati veri --- */
+const DEMO_SNAPSHOTS = [
+  { driver: "VER", rival: "NOR", created_at_lap: 24, current_gap_seconds: 1.4,
+    gap_slope_seconds_per_lap: -0.09, degradation_seconds_per_lap: 0.07,
+    estimated_laps_to_cliff: 9, sector_deltas: { S1: 0.04, S2: 0.28, S3: -0.02 },
+    worst_sector: "S2", worst_sector_delta: 0.28, gap_history: [2.1,2.0,1.9,1.8,1.6,1.4] },
+  { driver: "NOR", rival: "VER", created_at_lap: 24, current_gap_seconds: -1.4,
+    gap_slope_seconds_per_lap: 0.09, degradation_seconds_per_lap: 0.05,
+    estimated_laps_to_cliff: 14, sector_deltas: { S1: -0.04, S2: -0.28, S3: 0.02 },
+    worst_sector: "S1", worst_sector_delta: -0.04, gap_history: [-2.1,-2.0,-1.9,-1.8,-1.6,-1.4] },
+  { driver: "LEC", rival: "NOR", created_at_lap: 24, current_gap_seconds: 4.2,
+    gap_slope_seconds_per_lap: 0.02, degradation_seconds_per_lap: 0.15,
+    estimated_laps_to_cliff: 3, sector_deltas: { S1: 0.12, S2: 0.10, S3: 0.30 },
+    worst_sector: "S3", worst_sector_delta: 0.30, gap_history: [4.0,4.0,4.1,4.1,4.2,4.2] },
+];
+const DEMO_ANALYSES = [
+  { driver: "VER", created_at_lap: 24,
+    summary: "Passo solido, sta chiudendo il gap in modo costante.",
+    doing_well: ["Ottima trazione in uscita curva 1", "Frenata pulita in T6"],
+    mistakes: ["Perde tempo in settore 2 rispetto a Norris"],
+    cited_deltas: [{ metric_name: "sector:S2", stated_value: 0.28, grounding_passed: true }],
+    gap_trend_prediction: { rival: "NOR", predicted_delta_seconds: -0.3, horizon_laps: 5, assumptions: ["no_pit","no_sc"] },
+    tire_cliff_prediction: null },
+  { driver: "LEC", created_at_lap: 23,
+    summary: "Degrado in accelerazione, il cliff e' vicino.",
+    doing_well: [],
+    mistakes: ["Notevole perdita in settore 3, probabile gomma al limite"],
+    cited_deltas: [{ metric_name: "sector:S3", stated_value: 0.55, grounding_passed: false }],
+    gap_trend_prediction: null,
+    tire_cliff_prediction: { compound: "MEDIUM", stint_number: 2, predicted_cliff_lap_min: 26, predicted_cliff_lap_max: 28 } },
+];
+const DEMO_SESSION = { circuit: "Monza", session_type: "Gara", current_lap: 24, total_laps: 53,
+  air_temp: 27.4, track_temp: 41.2, rain_probability: 5 };
+
+/* ========================================================================= */
+
+function degradationClass(estimatedLapsToCliff) {
+  if (estimatedLapsToCliff === null || estimatedLapsToCliff === undefined) return "deg-unknown";
+  if (estimatedLapsToCliff > 8) return "deg-ok";
+  if (estimatedLapsToCliff > 3) return "deg-warn";
+  return "deg-alert";
+}
+
+function renderSparkline(history) {
+  if (!history || history.length < 2) return "";
+  const w = 90, h = 28, pad = 3;
+  const min = Math.min(...history), max = Math.max(...history);
+  const range = (max - min) || 1;
+  const step = (w - pad * 2) / (history.length - 1);
+  const points = history.map((v, i) => {
+    const x = pad + i * step;
+    const y = h - pad - ((v - min) / range) * (h - pad * 2);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  const closing = history[history.length - 1] < history[0];
+  const stroke = closing ? "var(--ok)" : "var(--alert)";
+  return `<svg class="sparkline" width="${w}" height="${h}" aria-hidden="true">
+    <polyline points="${points}" fill="none" stroke="${stroke}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+function renderDriverCard(snapshot, analysis) {
+  const trendClass = snapshot.gap_slope_seconds_per_lap < 0 ? "closing" : "opening";
+  const trendLabel = snapshot.gap_slope_seconds_per_lap < 0 ? "si avvicina" : "si allontana";
+  const degClass = degradationClass(snapshot.estimated_laps_to_cliff);
+  const cliffLabel = snapshot.estimated_laps_to_cliff != null
+    ? `cliff stimato in ${snapshot.estimated_laps_to_cliff} giri`
+    : "cliff non stimabile";
+
+  const doingWell = (analysis?.doing_well || []).map(x => `<li>${x}</li>`).join("");
+  const mistakes = (analysis?.mistakes || []).map(x => `<li>${x}</li>`).join("");
+
+  let predictionHtml = "";
+  if (analysis?.gap_trend_prediction) {
+    const p = analysis.gap_trend_prediction;
+    predictionHtml += `<div class="prediction-box">Previsione gap vs ${p.rival}: ${p.predicted_delta_seconds > 0 ? "+" : ""}${p.predicted_delta_seconds}s in ${p.horizon_laps} giri (${p.assumptions.join(", ")})</div>`;
+  }
+  if (analysis?.tire_cliff_prediction) {
+    const p = analysis.tire_cliff_prediction;
+    predictionHtml += `<div class="prediction-box">Cliff gomme previsto: giro ${p.predicted_cliff_lap_min}-${p.predicted_cliff_lap_max} (${p.compound}, stint ${p.stint_number})</div>`;
+  }
+
+  return `
+  <article class="driver-card" tabindex="0" role="button" aria-expanded="false" onclick="this.classList.toggle('expanded'); this.setAttribute('aria-expanded', this.classList.contains('expanded'))" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click();}">
+    <div class="row1">
+      <span class="driver-tag">${snapshot.driver}</span>
+      <span class="gap-value">${snapshot.current_gap_seconds > 0 ? "+" : ""}${snapshot.current_gap_seconds.toFixed(1)}s</span>
+      <span class="gap-trend ${trendClass}">${trendLabel} (${snapshot.gap_slope_seconds_per_lap.toFixed(2)}s/giro)</span>
+      ${renderSparkline(snapshot.gap_history)}
+    </div>
+    <div class="row2">
+      <span class="degradation-chip ${degClass}"><span class="dot"></span>${cliffLabel}</span>
+      <span class="sector-chip">peggior settore ${snapshot.worst_sector}: ${snapshot.worst_sector_delta > 0 ? "+" : ""}${snapshot.worst_sector_delta.toFixed(2)}s</span>
+    </div>
+    <div class="driver-detail">
+      ${analysis?.summary ? `<p>${analysis.summary}</p>` : ""}
+      ${doingWell ? `<h4>Punti di forza</h4><ul>${doingWell}</ul>` : ""}
+      ${mistakes ? `<h4>Da migliorare</h4><ul>${mistakes}</ul>` : ""}
+      ${predictionHtml}
+    </div>
+  </article>`;
+}
+
+function renderDriverGrid(snapshots, analysesByDriver) {
+  const grid = document.getElementById("driver-grid");
+  if (!snapshots || snapshots.length === 0) {
+    grid.innerHTML = `<div class="empty-state">
+      <div class="title">Nessuna sessione in corso</div>
+      <div>La dashboard si popola automaticamente quando inizia una sessione.</div>
+    </div>`;
+    return;
+  }
+  const sorted = [...snapshots].sort((a, b) => a.current_gap_seconds - b.current_gap_seconds);
+  grid.innerHTML = sorted.map(s => renderDriverCard(s, analysesByDriver[s.driver])).join("");
+}
+
+function renderRadioEntry(analysis) {
+  const badges = (analysis.cited_deltas || []).map(cd => {
+    const cls = cd.grounding_passed ? "pass" : "fail";
+    const icon = cd.grounding_passed ? "✓" : "⚠";
+    return `<span class="ground-badge ${cls}">${icon} ${cd.metric_name}: ${cd.stated_value}</span>`;
+  }).join("");
+
+  return `
+  <div class="radio-entry">
+    <div class="meta">
+      <span class="lap-tag">GIRO ${analysis.created_at_lap}</span>
+      <span class="tag">${analysis.driver}</span>
+    </div>
+    <div class="text">${badges}${analysis.summary || ""}</div>
+  </div>`;
+}
+
+function renderRadioFeed(analyses) {
+  const container = document.getElementById("radio-entries");
+  const sorted = [...analyses].sort((a, b) => b.created_at_lap - a.created_at_lap);
+  container.innerHTML = sorted.map(renderRadioEntry).join("");
+}
+
+function renderSessionBar(ctx) {
+  const bar = document.getElementById("session-bar");
+  if (!ctx) return;
+  bar.innerHTML = `
+    <span class="circuit">${ctx.circuit}</span>
+    <span class="badge-session">${ctx.session_type}</span>
+    <span class="lap-counter">Giro <strong>${ctx.current_lap}</strong> / ${ctx.total_laps}</span>
+    <span class="weather">
+      <span>Aria ${ctx.air_temp}°C</span>
+      <span>Pista ${ctx.track_temp}°C</span>
+      <span>Pioggia ${ctx.rain_probability}%</span>
+    </span>`;
+}
+
+function analysesByDriverLatest(analyses) {
+  const byDriver = {};
+  for (const a of analyses) {
+    if (!byDriver[a.driver] || a.created_at_lap > byDriver[a.driver].created_at_lap) {
+      byDriver[a.driver] = a;
+    }
+  }
+  return byDriver;
+}
+
+/* ========================= modalita' demo ========================= */
+if (DEMO_MODE) {
+  console.warn("F1 Copilot: SUPABASE_URL/ANON_KEY non configurati, mostro dati di esempio.");
+  renderSessionBar(DEMO_SESSION);
+  renderDriverGrid(DEMO_SNAPSHOTS, analysesByDriverLatest(DEMO_ANALYSES));
+  renderRadioFeed(DEMO_ANALYSES);
+} else {
+  /* ========================= modalita' reale ========================= */
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  let latestSnapshots = [];
+  let latestAnalyses = [];
+
+  async function loadInitialData() {
+    const { data: snapshots } = await supabase
+      .from("driver_snapshots")
+      .select("*")
+      .order("created_at_lap", { ascending: true })
+      .limit(500);
+    latestSnapshots = snapshots || [];
+
+    const { data: analyses } = await supabase
+      .from("engineer_analyses")
+      .select("*")
+      .order("created_at_lap", { ascending: false })
+      .limit(50);
+    latestAnalyses = analyses || [];
+
+    const { data: sessionRows } = await supabase
+      .from("session_context")
+      .select("*")
+      .order("current_lap", { ascending: false })
+      .limit(1);
+
+    renderSessionBar(sessionRows && sessionRows[0]);
+    redrawFromLatestPerDriver();
+    renderRadioFeed(latestAnalyses);
+  }
+
+  function redrawFromLatestPerDriver() {
+    // prende l'ultimo snapshot per pilota, ma costruisce anche lo storico
+    // gap per la sparkline raggruppando per driver
+    const byDriver = {};
+    for (const s of latestSnapshots) {
+      if (!byDriver[s.driver]) byDriver[s.driver] = [];
+      byDriver[s.driver].push(s);
+    }
+    const currentSnapshots = Object.values(byDriver).map(rows => {
+      const last = rows[rows.length - 1];
+      return { ...last, gap_history: rows.slice(-8).map(r => r.current_gap_seconds) };
+    });
+    renderDriverGrid(currentSnapshots, analysesByDriverLatest(latestAnalyses));
+  }
+
+  supabase.channel("driver_snapshots_changes")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_snapshots" }, payload => {
+      latestSnapshots.push(payload.new);
+      redrawFromLatestPerDriver();
+    })
+    .subscribe();
+
+  supabase.channel("engineer_analyses_changes")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "engineer_analyses" }, payload => {
+      latestAnalyses.unshift(payload.new);
+      renderRadioFeed(latestAnalyses);
+      redrawFromLatestPerDriver();
+    })
+    .subscribe();
+
+  supabase.channel("session_context_changes")
+    .on("postgres_changes", { event: "*", schema: "public", table: "session_context" }, payload => {
+      renderSessionBar(payload.new);
+    })
+    .subscribe();
+
+  loadInitialData();
+}
+</script>
+</body>
+</html>
