@@ -32,3 +32,14 @@ class SupabaseWriter:
         )
         if resp.status_code >= 300:
             raise RuntimeError(f"Scrittura su {table} fallita ({resp.status_code}): {resp.text}")
+
+    def select_latest(self, table: str, order_by: str, limit: int = 1) -> list[dict]:
+        resp = requests.get(
+            f"{self.url}/rest/v1/{table}",
+            headers=self._headers(),
+            params={"select": "*", "order": f"{order_by}.desc", "limit": limit},
+            timeout=20,
+        )
+        if resp.status_code >= 300:
+            raise RuntimeError(f"Lettura da {table} fallita ({resp.status_code}): {resp.text}")
+        return resp.json()

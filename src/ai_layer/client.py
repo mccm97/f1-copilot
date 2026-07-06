@@ -31,15 +31,19 @@ class MockLLMClient(LLMClient):
 class HuggingFaceLLMClient(LLMClient):
     """
     Implementazione verso l'Inference Providers router di HuggingFace
-    (compatibile OpenAI chat completions al momento della stesura).
-    TODO prima di usarla sul serio: verificare su huggingface.co/docs che
-    endpoint, nome del modello e formato risposta siano ancora questi,
-    l'offerta cambia spesso.
+    (compatibile OpenAI chat completions). Il token usato DEVE essere
+    "fine-grained" con il permesso "Make calls to Inference Providers"
+    attivo, altrimenti le richieste falliscono per permessi insufficienti.
+
+    Il modello di default va verificato prima dell'uso: il catalogo dei
+    modelli disponibili via router cambia spesso. Controlla modelli e prezzi
+    aggiornati su huggingface.co/playground e usa il suffisso ":cheapest"
+    per il piu' economico disponibile, cosi' non serve inseguire nomi fissi.
     """
 
     def __init__(
         self,
-        model: str = "meta-llama/Llama-3.1-8B-Instruct",
+        model: str = "Qwen/Qwen3-8B:cheapest",
         api_token: str | None = None,
         base_url: str = "https://router.huggingface.co/v1/chat/completions",
         timeout_seconds: int = 30,
