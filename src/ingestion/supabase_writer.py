@@ -43,3 +43,30 @@ class SupabaseWriter:
         if resp.status_code >= 300:
             raise RuntimeError(f"Lettura da {table} fallita ({resp.status_code}): {resp.text}")
         return resp.json()
+
+    def write_engineer_analysis(self, driver_result: dict, created_at_lap: int) -> None:
+        """Scrive una riga in engineer_analyses fondendo l'esito del grounding
+        check dentro cited_deltas, cosi' il frontend puo' mostrare i badge
+        senza dover ricalcolare nulla."""
+        analysis = driver_result["analysis"]
+        grounding_checks = driver_result["grounding_checks"]
+
+        cited_deltas = [
+            {
+                "metric_name": cited["metric_name"],
+                "stated_value": cited["stated_value"],
+                "grounding_passed": check["passed"],
+            }
+            for cited, check in zip(analysis.get("cited_deltas", []), grounding_checks)
+        ]
+
+        self.insert("engineer_analyses", {
+            "driver": analysis["driver"],
+            "created_at_lap": created_at_lap,
+            "summary": analysis["summary"],
+            "doing_well": analysis.get("doing_well", []),
+            "mistakes": analysis.get("mistakes", []),
+            "cited_deltas": cited_deltas,
+            "gap_trend_prediction": analysis.get("gap_trend_prediction"),
+            "tire_cliff_prediction": analysis.get("tire_cliff_prediction"),
+        })
