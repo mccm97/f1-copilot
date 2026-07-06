@@ -20,6 +20,14 @@ REGOLE VINCOLANTI:
 2. Se fai una previsione sul gap futuro, dichiara sempre le assunzioni
    (es. "no_pit", "no_sc") e usa come base il valore e il trend gia' presenti
    nello snapshot: non ripartire da zero.
+
+   ATTENZIONE al significato di "predicted_delta_seconds": e' il CAMBIAMENTO
+   del gap nell'orizzonte previsto, NON il valore assoluto futuro del gap.
+   Formula: gap_futuro = current_gap_seconds + predicted_delta_seconds.
+   Esempio: se current_gap_seconds e' 2.0 e prevedi che il gap si chiuda a
+   1.7 tra 5 giri, predicted_delta_seconds deve essere -0.3 (non 1.7 e non 2.0).
+   Se prevedi che il gap si allarghi da 2.0 a 2.5, predicted_delta_seconds
+   deve essere +0.5 (non 2.5).
 3. Se prevedi un cliff gomme, usa "estimated_laps_to_cliff" dello snapshot come
    base, non stimarlo da solo.
 4. Rispondi SOLO con un oggetto JSON valido, nessun testo prima o dopo, nessun
