@@ -7,8 +7,11 @@ scoring.py parlano solo con ClaimStorage, mai con l'implementazione concreta).
 from __future__ import annotations
 
 import json
+import os
 from abc import ABC, abstractmethod
 from pathlib import Path
+
+import requests
 
 from .claims import BaseClaim, ClaimStatus
 
@@ -97,6 +100,109 @@ class LocalJSONClaimStorage(ClaimStorage):
                 continue
             if claim_type and record["claim_type"] != claim_type:
                 continue
+            cls = _claim_class_for_type(record["claim_type"])
+            results.append(cls.model_validate(record))
+        return results
+
+
+class SupabaseClaimStorage(ClaimStorage):
+    """
+    Storage persistente su Supabase: stessa interfaccia di LocalJSONClaimStorage,
+    cosi' ClaimRegistry e tutto il resto del codice non cambiano. Necessario
+    perche' il worker automatico (che gira come processo separato ad ogni
+    ciclo, senza stato condiviso) possa ritrovare i claim dei cicli precedenti.
+
+    Serve la tabella SQL 'claims' (vedi sql/create_claims_table.sql) e la
+    service_role key, mai l'anon key: qui si scrive e si aggiornano claim,
+    non e' un accesso di sola lettura come quello del frontend.
+    """
+
+    def __init__(self, url: str | None = None, service_role_key: str | None = None):
+        self.url = (url or os.environ["SUPABASE_URL"]).rstrip("/")
+        self.key = service_role_key or os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+
+    def _headers(self, prefer: str = "return=representation") -> dict:
+        return {
+            "apikey": self.key,
+            "Authorization": f"Bearer {self.key}",
+            "Content-Type": "application/json",
+            "Prefer": prefer,
+        }
+
+    def save(self, claim: BaseClaim) -> None:
+        row = {
+            "id": claim.id,
+            "session_key": claim.session_key,
+            "driver": claim.driver,
+            "claim_type": claim.claim_type,
+            "status": claim.status.value,
+            "created_at_lap": claim.created_at_lap,
+            "data": json.loads(claim.model_dump_json()),
+        }
+        resp = requests.post(
+            f"{self.url}/rest/v1/claims",
+            headers=self._headers(prefer="return=minimal"),
+            json=row,
+            timeout=20,
+        )
+        if resp.status_code >= 300:
+            raise RuntimeError(f"Salvataggio claim fallito ({resp.status_code}): {resp.text}")
+
+    def get(self, claim_id: str) -> BaseClaim | None:
+        resp = requests.get(
+            f"{self.url}/rest/v1/claims",
+            headers=self._headers(),
+            params={"id": f"eq.{claim_id}", "select": "data"},
+            timeout=20,
+        )
+        resp.raise_for_status()
+        rows = resp.json()
+        if not rows:
+            return None
+        record = rows[0]["data"]
+        cls = _claim_class_for_type(record["claim_type"])
+        return cls.model_validate(record)
+
+    def update(self, claim: BaseClaim) -> None:
+        row = {
+            "status": claim.status.value,
+            "data": json.loads(claim.model_dump_json()),
+        }
+        resp = requests.patch(
+            f"{self.url}/rest/v1/claims",
+            headers=self._headers(prefer="return=minimal"),
+            params={"id": f"eq.{claim.id}"},
+            json=row,
+            timeout=20,
+        )
+        if resp.status_code >= 300:
+            raise RuntimeError(f"Aggiornamento claim fallito ({resp.status_code}): {resp.text}")
+
+    def list(
+        self,
+        session_key: str | None = None,
+        driver: str | None = None,
+        status: ClaimStatus | None = None,
+        claim_type: str | None = None,
+    ) -> list[BaseClaim]:
+        params = {"select": "data"}
+        if session_key:
+            params["session_key"] = f"eq.{session_key}"
+        if driver:
+            params["driver"] = f"eq.{driver}"
+        if status:
+            params["status"] = f"eq.{status.value}"
+        if claim_type:
+            params["claim_type"] = f"eq.{claim_type}"
+
+        resp = requests.get(
+            f"{self.url}/rest/v1/claims", headers=self._headers(), params=params, timeout=20
+        )
+        resp.raise_for_status()
+
+        results = []
+        for row in resp.json():
+            record = row["data"]
             cls = _claim_class_for_type(record["claim_type"])
             results.append(cls.model_validate(record))
         return results
