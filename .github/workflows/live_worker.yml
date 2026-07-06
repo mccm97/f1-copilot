@@ -1,0 +1,29 @@
+name: Ciclo capo ingegnere live
+
+on:
+  schedule:
+    # ogni 5 minuti, il minimo intervallo permesso da GitHub Actions.
+    # Nota: GitHub disattiva automaticamente gli schedule su repository
+    # senza attivita' per 60 giorni, andra' ri-attivato manualmente se capita.
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}  # permette anche l'avvio manuale per test
+
+jobs:
+  live-cycle:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installa dipendenze
+        run: pip install -r requirements.txt requests
+
+      - name: Esegui ciclo live
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: python scripts/live_cycle.py
