@@ -49,7 +49,7 @@ class HuggingFaceLLMClient(LLMClient):
         timeout_seconds: int = 30,
     ):
         self.model = model
-        self.api_token = api_token or os.environ.get("HF_API_TOKEN")
+        self.api_token = api_token or os.environ.get("HF_TOKEN")
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
 
@@ -57,7 +57,7 @@ class HuggingFaceLLMClient(LLMClient):
         import requests
 
         if not self.api_token:
-            raise RuntimeError("HF_API_TOKEN non impostato: serve un token gratuito HuggingFace")
+            raise RuntimeError("HF_TOKEN non impostato: serve un token gratuito HuggingFace")
 
         response = requests.post(
             self.base_url,
