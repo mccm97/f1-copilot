@@ -328,8 +328,8 @@
    pubblica lato client, ma assicurati di avere le Row Level Security policy
    configurate correttamente su ogni tabella prima di andare live.
    ========================================================================= */
-const SUPABASE_URL = "https://hbgjjkzvddptshzcinyd.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhiZ2pqa3p2ZGRwdHNoemNpbnlkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMyNDYzNjAsImV4cCI6MjA5ODgyMjM2MH0.E7eGH7bRBWkxsDmLYF7dzDn83udHP80jll2caMe5rG4";
+const SUPABASE_URL = "INSERISCI_QUI_IL_TUO_URL_SUPABASE";
+const SUPABASE_ANON_KEY = "INSERISCI_QUI_LA_TUA_ANON_KEY";
 
 const DEMO_MODE = SUPABASE_URL.startsWith("INSERISCI");
 
@@ -508,6 +508,34 @@ if (DEMO_MODE) {
   const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   let latestSnapshots = [];
   let latestAnalyses = [];
+  let lastSessionContext = null;
+
+  // Se non arriva nessun aggiornamento da piu' di questa soglia, la sessione
+  // e' considerata conclusa/inattiva: meglio mostrare "nessuna sessione" che
+  // dati vecchi scambiati per attuali. Il worker scrive ogni ~5 minuti
+  // durante una sessione live, quindi 10 minuti da margine per un ciclo
+  // saltato senza far sparire i dati troppo presto.
+  const STALE_THRESHOLD_MS = 10 * 60 * 1000;
+
+  function isFresh(ctx) {
+    if (!ctx || !ctx.inserted_at) return false;
+    return (Date.now() - new Date(ctx.inserted_at).getTime()) < STALE_THRESHOLD_MS;
+  }
+
+  function renderAll() {
+    if (!isFresh(lastSessionContext)) {
+      renderSessionBar(null);
+      document.getElementById("session-bar").innerHTML = `
+        <span class="circuit">—</span>
+        <span class="badge-session">Nessuna sessione live</span>`;
+      renderDriverGrid([], {});
+      renderRadioFeed([]);
+      return;
+    }
+    renderSessionBar(lastSessionContext);
+    redrawFromLatestPerDriver();
+    renderRadioFeed(latestAnalyses);
+  }
 
   async function loadInitialData() {
     const { data: snapshots } = await supabase
@@ -527,12 +555,11 @@ if (DEMO_MODE) {
     const { data: sessionRows } = await supabase
       .from("session_context")
       .select("*")
-      .order("current_lap", { ascending: false })
+      .order("inserted_at", { ascending: false })
       .limit(1);
+    lastSessionContext = sessionRows && sessionRows[0];
 
-    renderSessionBar(sessionRows && sessionRows[0]);
-    redrawFromLatestPerDriver();
-    renderRadioFeed(latestAnalyses);
+    renderAll();
   }
 
   function redrawFromLatestPerDriver() {
@@ -550,24 +577,29 @@ if (DEMO_MODE) {
     renderDriverGrid(currentSnapshots, analysesByDriverLatest(latestAnalyses));
   }
 
+  // ricontrolla la freschezza anche senza nuovi eventi realtime, cosi' se il
+  // worker smette di scrivere (sessione finita) la dashboard torna da sola
+  // allo stato vuoto entro un minuto, senza bisogno di ricaricare la pagina
+  setInterval(renderAll, 60 * 1000);
+
   supabase.channel("driver_snapshots_changes")
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "driver_snapshots" }, payload => {
       latestSnapshots.push(payload.new);
-      redrawFromLatestPerDriver();
+      renderAll();
     })
     .subscribe();
 
   supabase.channel("engineer_analyses_changes")
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "engineer_analyses" }, payload => {
       latestAnalyses.unshift(payload.new);
-      renderRadioFeed(latestAnalyses);
-      redrawFromLatestPerDriver();
+      renderAll();
     })
     .subscribe();
 
   supabase.channel("session_context_changes")
     .on("postgres_changes", { event: "*", schema: "public", table: "session_context" }, payload => {
-      renderSessionBar(payload.new);
+      lastSessionContext = payload.new;
+      renderAll();
     })
     .subscribe();
 
